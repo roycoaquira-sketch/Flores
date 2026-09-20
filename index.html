@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Un viaje de girasoles</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Quicksand:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#05060f;
+    --bg-mid:#0b0f24;
+    --glow-1:#ff9b1c;
+    --glow-2:#ffd447;
+    --yellow:#ffd84d;
+    --yellow-soft:#ffe98a;
+    --white:#fff9e8;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *,*::before,*::after{box-sizing:border-box;}
+  html,body{height:100%;margin:0;overflow:hidden;background:var(--bg-deep);}
+  body{
+    font-family:'Quicksand',system-ui,-apple-system,'Segoe UI',sans-serif;
+    color:var(--white);
+    -webkit-tap-highlight-color:transparent;
+    user-select:none;
+  }
+
+  /* ---------- fondo ---------- */
+  #bg{
+    position:fixed;inset:0;
+    background:
+      radial-gradient(circle at 50% 50%, rgba(255,155,28,.45) 0%, rgba(255,120,10,.16) 22%, rgba(10,12,32,0) 58%),
+      radial-gradient(circle at 50% 45%, #14183a 0%, #080a18 55%, #04050c 100%);
+    z-index:0;
+  }
+  #bg::after{
+    content:"";position:absolute;inset:0;
+    background:radial-gradient(circle at 50% 50%, rgba(255,190,60,.30) 0%, rgba(255,140,20,0) 45%);
+    animation:pulseGlow 4.5s ease-in-out infinite;
+  }
+  @keyframes pulseGlow{0%,100%{opacity:.55;transform:scale(1);}50%{opacity:1;transform:scale(1.12);}}
+
+  /* ---------- escena 3D ---------- */
+  #viewport{
+    position:fixed;inset:0;
+    perspective:800px;
+    perspective-origin:50% 50%;
+    z-index:2;
+    overflow:hidden;
+  }
+  #scene{
+    position:absolute;left:50%;top:50%;
+    transform-style:preserve-3d;
+    width:0;height:0;
+  }
+  .obj{
+    position:absolute;
+    transform-style:preserve-3d;
+    will-change:transform,opacity;
+    pointer-events:none;
+  }
+  .obj .inner{transform:translate(-50%,-50%);}
+
+  /* rayos de velocidad */
+  #streaks{position:fixed;inset:0;z-index:1;overflow:hidden;pointer-events:none;}
+  .streak{
+    position:absolute;left:50%;top:50%;
+    width:2px;height:90px;
+    background:linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,235,170,.85));
+    border-radius:2px;
+    transform-origin:50% 0;
+    opacity:0;
+  }
+
+  /* ---------- girasol ---------- */
+  .flower{cursor:pointer;pointer-events:auto;}
+  .flower svg,.bouquet svg{display:block;filter:drop-shadow(0 0 10px rgba(255,180,40,.55));}
+  .flower .hit{
+    position:absolute;left:50%;top:50%;
+    width:130%;height:130%;
+    transform:translate(-50%,-50%);
+  }
+  .flower .head{transform-origin:50% 38%;animation:sway 3.6s ease-in-out infinite;}
+  @keyframes sway{0%,100%{transform:rotate(-4deg);}50%{transform:rotate(4deg);}}
+
+  .flower.taken{animation:pop .55s ease-out forwards;}
+  @keyframes pop{
+    0%{transform:translate(-50%,-50%) scale(1);filter:brightness(1);}
+    40%{transform:translate(-50%,-50%) scale(1.5);filter:brightness(2.2);}
+    100%{transform:translate(-50%,-50%) scale(.1);opacity:0;}
+  }
+
+  /* ---------- texto flotante ---------- */
+  .txt{
+    white-space:nowrap;
+    font-weight:700;
+    letter-spacing:.5px;
+    color:var(--yellow);
+    text-shadow:0 0 6px rgba(255,190,60,.9),0 0 22px rgba(255,140,20,.65);
+  }
+  .txt.alt{color:var(--white);text-shadow:0 0 8px rgba(255,255,220,.8),0 0 26px rgba(255,190,80,.5);}
+
+  /* ---------- pantalla de inicio ---------- */
+  #start{
+    position:fixed;inset:0;z-index:20;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;cursor:pointer;
+    transition:opacity .9s ease;
+  }
+  #start .bloom{animation:breathe 3s ease-in-out infinite;filter:drop-shadow(0 0 18px rgba(255,170,40,.9));}
+  @keyframes breathe{0%,100%{transform:scale(1);}50%{transform:scale(1.1);}}
+  #start .label{
+    font-family:'Press Start 2P',monospace;
+    font-size:clamp(9px,2.6vw,13px);
+    color:var(--yellow);
+    text-shadow:0 0 8px rgba(255,180,40,.95),0 0 26px rgba(255,120,10,.7);
+    letter-spacing:1px;
+  }
+  #start .hint{
+    margin-top:26px;font-size:12px;opacity:.5;letter-spacing:1px;
+  }
+  #start.gone{opacity:0;pointer-events:none;}
+
+  /* ---------- HUD ---------- */
+  #hud{
+    position:fixed;left:0;right:0;
+    top:env(safe-area-inset-top,0px);
+    padding:16px 18px;
+    z-index:15;display:flex;justify-content:space-between;align-items:center;
+    pointer-events:none;opacity:0;transition:opacity .8s ease .6s;
+    font-size:13px;letter-spacing:1px;
+  }
+  #hud.on{opacity:1;}
+  #counter{
+    background:rgba(10,8,20,.45);
+    border:1px solid rgba(255,200,80,.35);
+    border-radius:999px;padding:7px 15px;
+    backdrop-filter:blur(6px);
+    color:var(--yellow-soft);font-weight:700;
+  }
+  #tip{color:rgba(255,245,220,.55);font-size:11px;}
+
+  /* ---------- frase al recoger ---------- */
+  #pickup{
+    position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);
+    z-index:18;pointer-events:none;text-align:center;
+    font-size:clamp(22px,6.5vw,44px);font-weight:700;
+    color:var(--white);
+    text-shadow:0 0 14px rgba(255,200,80,1),0 0 44px rgba(255,140,20,.8);
+    opacity:0;
+  }
+  #pickup.show{animation:riseUp 1.8s ease-out forwards;}
+  @keyframes riseUp{
+    0%{opacity:0;transform:translate(-50%,-50%) scale(.7);}
+    18%{opacity:1;transform:translate(-50%,-50%) scale(1);}
+    70%{opacity:1;transform:translate(-50%,-62%) scale(1.04);}
+    100%{opacity:0;transform:translate(-50%,-78%) scale(1.08);}
+  }
+
+  /* ---------- final ---------- */
+  #final{
+    position:fixed;inset:0;z-index:25;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;padding:30px;gap:18px;
+    background:radial-gradient(circle at 50% 50%, rgba(255,150,30,.35), rgba(5,6,15,.92) 65%);
+    opacity:0;pointer-events:none;transition:opacity 1.4s ease;
+  }
+  #final.on{opacity:1;pointer-events:auto;}
+  #final h1{
+    margin:0;font-size:clamp(26px,8vw,54px);
+    color:var(--yellow);
+    text-shadow:0 0 16px rgba(255,190,60,.95),0 0 50px rgba(255,120,10,.7);
+  }
+  #final p{margin:0;max-width:520px;line-height:1.6;color:var(--white);opacity:.9;font-size:clamp(14px,4vw,18px);}
+  #again{
+    margin-top:12px;cursor:pointer;
+    font-family:'Press Start 2P',monospace;font-size:10px;
+    color:#1a1200;background:linear-gradient(180deg,var(--glow-2),var(--glow-1));
+    border:none;border-radius:999px;padding:14px 22px;
+    box-shadow:0 0 22px rgba(255,170,40,.7);
+  }
+  #again:active{transform:scale(.96);}
+
+  @media (prefers-reduced-motion:reduce){
+    #bg::after,.flower .head,#start .bloom{animation:none;}
+  }
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="streaks"></div>
+<div id="viewport"><div id="scene"></div></div>
+
+<div id="hud">
+  <div id="counter">🌻 0 / 12</div>
+  <div id="tip">toca los girasoles</div>
+</div>
+
+<div id="pickup"></div>
+
+<div id="start">
+  <div class="bloom">
+    <svg width="74" height="86" viewBox="0 0 74 86" aria-hidden="true">
+      <g transform="translate(37,30)">
+        <g id="sp"></g>
+        <circle r="10" fill="#7a3b12"/><circle r="6.5" fill="#5c2a0c"/>
+      </g>
+      <path d="M37 42 L37 82" stroke="#39a04a" stroke-width="4" stroke-linecap="round"/>
+      <path d="M37 62 q-16 -10 -22 2 q14 9 22 -2z" fill="#3fae52"/>
+      <path d="M37 70 q16 -10 22 2 q-14 9 -22 -2z" fill="#349444"/>
+    </svg>
+  </div>
+  <div class="label">EMPEZAR VIAJE</div>
+  <div class="hint">toca en cualquier lugar</div>
+</div>
+
+<div id="final">
+  <h1>Gracias por existir 🌻</h1>
+  <p>Recogiste todos los girasoles. Cada uno guardaba algo que quería decirte: que eres mi persona favorita, que contigo todo es mejor, y que esto es por siempre.</p>
+  <button id="again">VOLVER A VIAJAR</button>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ CONFIG ============ */
+  const PHRASES = [
+    "Eres especial",
+    "Mi persona favorita",
+    "Contigo todo es mejor",
+    "Siempre brillas",
+    "Eres mi sol",
+    "Flores para ti",
+    "Por siempre",
+    "Gracias por existir",
+    "Eres pura luz",
+    "Hecho para ti",
+    "Mi lugar seguro",
+    "Te elijo siempre"
+  ];
+  const FLOATING = [
+    "Eres especial","Mi persona favorita","Por siempre","Siempre brillas",
+    "Gracias por existir","Contigo todo es mejor","Un sol","Flores para ti",
+    "Eres mi luz","Hecho para ti","Te quiero","Mi favorita"
+  ];
+
+  const TOTAL = PHRASES.length;
+  const NUM_FLOWERS = 26;
+  const NUM_BOUQUETS = 10;
+  const NUM_TEXTS   = 30;
+  const NUM_STREAKS = 46;
+
+  const Z_FAR = -3400, Z_NEAR = 620, FADE_START = -2600, FADE_END = -1500;
+
+  /* ============ SVG ============ */
+  function petals(n, rx, ry, dist, col1, col2){
+    let s = "";
+    for(let i=0;i<n;i++){
+      const a = (360/n)*i;
+      const c = i%2 ? col2 : col1;
+      s += `<ellipse cx="0" cy="${-dist}" rx="${rx}" ry="${ry}" fill="${c}" transform="rotate(${a})"/>`;
+    }
+    return s;
+  }
+  function sunflowerSVG(size){
+    const s = size;
+    return `<svg width="${s}" height="${s*1.25}" viewBox="0 0 100 125">
+      <path d="M50 58 L50 120" stroke="#2f8e40" stroke-width="5" stroke-linecap="round"/>
+      <path d="M50 86 q-24 -15 -33 3 q21 14 33 -3z" fill="#3fae52"/>
+      <path d="M50 100 q24 -15 33 3 q-21 14 -33 -3z" fill="#2f8e40"/>
+      <g class="head" transform="translate(50,48)">
+        ${petals(14, 7.5, 19, 24, "#ffd23f", "#ffb01f")}
+        ${petals(8, 6, 15, 19, "#ffe066", "#ffc531")}
+        <circle r="13" fill="#7a3b12"/>
+        <circle r="8.5" fill="#5a2909"/>
+        <circle r="3.5" fill="#421d05"/>
+      </g>
+    </svg>`;
+  }
+  function bouquetSVG(size){
+    const s=size;
+    return `<svg width="${s}" height="${s}" viewBox="0 0 120 120">
+      <g transform="translate(34,44) scale(.62)">${petals(12,8,20,24,"#ffd23f","#ffae1c")}<circle r="13" fill="#7a3b12"/></g>
+      <g transform="translate(84,38) scale(.55)">${petals(12,8,20,24,"#ffe066","#ffc531")}<circle r="13" fill="#6d3410"/></g>
+      <g transform="translate(60,68) scale(.7)">${petals(12,8,20,24,"#ffcf33","#ff9f14")}<circle r="13" fill="#7a3b12"/></g>
+      <path d="M40 56 L58 110 M88 50 L64 110 M62 84 L61 112" stroke="#2f8e40" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <path d="M46 116 q14 -8 28 0 q-14 8 -28 0z" fill="#c9752a"/>
+    </svg>`;
+  }
+
+  // flor de la portada
+  document.getElementById('sp').innerHTML = petals(12, 6.5, 16, 19, "#ffd23f", "#ffb01f");
+
+  /* ============ ESTADO ============ */
+  const scene    = document.getElementById('scene');
+  const viewport = document.getElementById('viewport');
+  const streakBox= document.getElementById('streaks');
+  const counterEl= document.getElementById('counter');
+  const hud      = document.getElementById('hud');
+  const pickup   = document.getElementById('pickup');
+  const startEl  = document.getElementById('start');
+  const finalEl  = document.getElementById('final');
+
+  let objs = [], streaks = [];
+  let running = false, collected = 0, queue = [];
+  let speed = 320, targetSpeed = 320, last = 0;
+
+  const rnd = (a,b)=>a+Math.random()*(b-a);
+  const pick = arr => arr[(Math.random()*arr.length)|0];
+
+  function spreadX(){ return rnd(-1, 1) * Math.max(window.innerWidth, 520) * 1.35; }
+  function spreadY(){ return rnd(-1, 1) * Math.max(window.innerHeight, 520) * 0.95; }
+
+  function placeFar(o, spawnAll){
+    o.x = spreadX();
+    o.y = spreadY();
+    // evitar que aparezca justo en el centro (tapa la vista)
+    if(Math.abs(o.x) < 120 && Math.abs(o.y) < 120) o.x += 260 * (Math.random()<.5?-1:1);
+    o.z = spawnAll ? rnd(Z_FAR, Z_NEAR-200) : rnd(Z_FAR, Z_FAR+900);
+    o.rot = rnd(-12,12);
+    o.taken = false;
+    o.el.classList.remove('taken');
+    o.el.style.opacity = 0;
+    if(o.type === 'text'){
+      o.inner.textContent = pick(FLOATING);
+      o.inner.className = 'inner txt' + (Math.random()<.35 ? ' alt' : '');
+      o.inner.style.fontSize = rnd(20,52).toFixed(0)+'px';
+    }
+  }
+
+  function makeObj(type, spawnAll){
+    const el = document.createElement('div');
+    el.className = 'obj ' + type;
+    const inner = document.createElement('div');
+    inner.className = 'inner';
+
+    if(type === 'flower'){
+      inner.innerHTML = sunflowerSVG(rnd(90,150));
+      const hit = document.createElement('div');
+      hit.className = 'hit';
+      inner.appendChild(hit);
+    } else if(type === 'bouquet'){
+      inner.innerHTML = bouquetSVG(rnd(90,160));
+    } else {
+      inner.className = 'inner txt';
+    }
+
+    el.appendChild(inner);
+    scene.appendChild(el);
+
+    const o = { el, inner, type };
+    placeFar(o, spawnAll);
+
+    if(type === 'flower'){
+      el.addEventListener('pointerdown', ev => {
+        ev.stopPropagation();
+        collect(o);
+      });
+    }
+    return o;
+  }
+
+  function buildStreaks(){
+    for(let i=0;i<NUM_STREAKS;i++){
+      const el = document.createElement('div');
+      el.className = 'streak';
+      streakBox.appendChild(el);
+      streaks.push({ el, a: rnd(0,Math.PI*2), d: rnd(40,900), v: rnd(320,900) });
+    }
+  }
+
+  function build(){
+    scene.innerHTML = '';
+    objs = [];
+    for(let i=0;i<NUM_FLOWERS;i++)  objs.push(makeObj('flower', true));
+    for(let i=0;i<NUM_BOUQUETS;i++) objs.push(makeObj('bouquet', true));
+    for(let i=0;i<NUM_TEXTS;i++)    objs.push(makeObj('text', true));
+  }
+
+  /* ============ RECOGER ============ */
+  function collect(o){
+    if(!running || o.taken || collected >= TOTAL) return;
+    o.taken = true;
+    o.el.querySelector('.inner').classList.add('taken');
+    o.el.style.pointerEvents = 'none';
+
+    const phrase = queue.shift() || "Para ti";
+    collected++;
+    counterEl.textContent = '🌻 ' + collected + ' / ' + TOTAL;
+
+    pickup.textContent = phrase;
+    pickup.classList.remove('show');
+    void pickup.offsetWidth;
+    pickup.classList.add('show');
+
+    targetSpeed = 700;
+    setTimeout(()=>{ targetSpeed = 340; }, 700);
+
+    setTimeout(()=>{
+      o.el.querySelector('.inner').classList.remove('taken');
+      o.el.style.pointerEvents = '';
+      placeFar(o, false);
+    }, 700);
+
+    if(collected >= TOTAL){
+      setTimeout(()=>{
+        finalEl.classList.add('on');
+        targetSpeed = 120;
+      }, 1900);
+    }
+  }
+
+  /* ============ LOOP ============ */
+  function frame(t){
+    if(!last) last = t;
+    let dt = (t - last) / 1000;
+    last = t;
+    if(dt > .12) dt = .12;
+    if(!running){ requestAnimationFrame(frame); return; }
+
+    speed += (targetSpeed - speed) * Math.min(1, dt*3);
+
+    for(let i=0;i<objs.length;i++){
+      const o = objs[i];
+      o.z += speed * dt;
+      if(o.z > Z_NEAR){ placeFar(o, false); continue; }
+
+      let op = 1;
+      if(o.z < FADE_END){
+        op = (o.z - FADE_START) / (FADE_END - FADE_START);
+        if(op < 0) op = 0;
+      }
+      if(o.z > 380) op *= Math.max(0, 1 - (o.z - 380) / (Z_NEAR - 380));
+      if(o.type === 'text') op *= .92;
+
+      o.el.style.opacity = op.toFixed(3);
+      o.el.style.transform =
+        'translate3d(' + o.x.toFixed(1) + 'px,' + o.y.toFixed(1) + 'px,' + o.z.toFixed(1) + 'px)' +
+        ' rotate(' + o.rot.toFixed(1) + 'deg)';
+    }
+
+    const cx = window.innerWidth/2, cy = window.innerHeight/2;
+    const maxR = Math.hypot(cx, cy) * 1.15;
+    for(let i=0;i<streaks.length;i++){
+      const s = streaks[i];
+      s.d += (s.v + speed*1.1) * dt;
+      if(s.d > maxR){ s.d = rnd(20,90); s.a = rnd(0,Math.PI*2); }
+      const x = Math.cos(s.a) * s.d, y = Math.sin(s.a) * s.d;
+      const len = 26 + s.d * 0.16 + speed*0.05;
+      const deg = s.a * 180/Math.PI - 90;
+      s.el.style.transform = 'translate('+x.toFixed(1)+'px,'+y.toFixed(1)+'px) rotate('+deg.toFixed(1)+'deg) scaleY('+(len/90).toFixed(3)+')';
+      s.el.style.opacity = Math.min(.75, s.d / maxR * 0.9).toFixed(2);
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  /* ============ INICIO / REINICIO ============ */
+  function reset(){
+    collected = 0;
+    queue = PHRASES.slice();
+    counterEl.textContent = '🌻 0 / ' + TOTAL;
+    objs.forEach(o => placeFar(o, true));
+    speed = 320; targetSpeed = 340;
+  }
+
+  function begin(){
+    reset();
+    running = true;
+    startEl.classList.add('gone');
+    hud.classList.add('on');
+    finalEl.classList.remove('on');
+  }
+
+  startEl.addEventListener('pointerdown', begin);
+  document.getElementById('again').addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    finalEl.classList.remove('on');
+    reset();
+  });
+
+  // acelerar al tocar el vacío
+  viewport.addEventListener('pointerdown', () => {
+    if(!running) return;
+    targetSpeed = 640;
+    setTimeout(()=>{ if(collected < TOTAL) targetSpeed = 340; }, 550);
+  });
+
+  window.addEventListener('resize', () => {
+    objs.forEach(o => { if(o.z < FADE_END) placeFar(o, false); });
+  });
+
+  buildStreaks();
+  build();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
